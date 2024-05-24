@@ -113,7 +113,11 @@ def create_tables_and_hypertables(conn,p_db_ver,):
     try:
         cursor = conn.cursor()
         for command in commands:
-            xprint("***CREATING Table*** "+str(re.search(r'l2\w+', command).group()))
+            try:
+                xprint("***CREATING Table*** "+str(re.search(r'l2\w+', command).group()))
+            except:
+                xprint("***CREATING Table*** logs")
+                
             cursor.execute(command)
         for hypertable_command in hypertable_commands:
             # xprint("***CREATING Hypertable*** "++str(re.search(r"'l2\w+", hypertable_command).group()))            
@@ -181,5 +185,3 @@ if __name__ == '__main__':
         p_db_ver=n_db_ver,
         p_yprint=args.a_yprint,
         p_reset=args.a_reset)
-
-

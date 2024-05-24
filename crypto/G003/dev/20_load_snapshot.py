@@ -20,8 +20,8 @@ from io import StringIO
 # Load environment variables from .env file
 load_dotenv()
 
-global yprint, p_db_ver
-yprint = True
+# global yprint, p_db_ver
+# yprint = True
 
 def db_init(p_db_ver):
     pass
@@ -32,7 +32,7 @@ def db_init(p_db_ver):
 #   
 # #######################################################################################################
 
-def f_ETL_Init_01(p_snap_init_file, conn):
+def f_ETL_Init_01(p_snap_init_file,p_db_ver,conn):
     try:
         # ============================================================================================
         #   EXTRACT  
@@ -40,14 +40,14 @@ def f_ETL_Init_01(p_snap_init_file, conn):
 
         ### READ-IN
         l2_snapshot_01 = pd.read_feather(p_snap_init_file)
-        lprint(f"***f_ETL_Init_01*** Read in file: {p_snap_init_file}")
-        lprint(f"***f_ETL_Init_01*** Read in # rows: {len(l2_snapshot_01)}")
+        lprint(f"***f_ETL_Init_01*** Read in file: {p_snap_init_file}",conn,p_db_ver)
+        lprint(f"***f_ETL_Init_01*** Read in # rows: {len(l2_snapshot_01)}",conn,p_db_ver)
 
         # ============================================================================================
         #   TRANSFORM
         # ============================================================================================
 
-        lprint("***f_ETL_Init_01*** l2_snapshot_01")
+        lprint("***f_ETL_Init_01*** l2_snapshot_01",conn,p_db_ver)
         ### Lower-case
         l2_snapshot_01.columns = map(str.lower, l2_snapshot_01.columns)
         ### CREATE Numeric px & qx    
@@ -86,7 +86,7 @@ def f_ETL_Init_01(p_snap_init_file, conn):
         copy_from_dataframe(conn, l2_history_00b, 'l2_history_bid')
 
     except Exception as e:
-        log_message(conn, 'ERROR', f"Error in f_ETL_Init_01: {str(e)}")
+        log_message(conn, 'ERROR', p_db_ver, f"Error in f_ETL_Init_01: {str(e)}")
 # #######################################################################################################
 #   
 #   MAIN
@@ -118,7 +118,6 @@ def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
     # DB_PORT = os.getenv('DB_PORT')
     # DB_NAME = os.getenv('DB_NAME')
     # CONNECTION = f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
     try:
         conn = psycopg2.connect(CONNECTION)
         conn.autocommit = True
@@ -139,7 +138,7 @@ def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
             p_snap_init_file = p_snap_init_file_dir + "001_raw/" + d_inti_snapshots[p_ticker]
 
             # # Load initial snapshot
-            f_ETL_Init_01(p_snap_init_file, conn)
+            f_ETL_Init_01(p_snap_init_file, p_db_ver,conn)
 
             # # ------------------------------------------------------------------------------------
             # # CLEAN-UP & CLOSE
@@ -147,7 +146,7 @@ def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
 
             shutil.move(os.path.join(p_snap_init_file_dir + "001_raw/", d_inti_snapshots[p_ticker]), 
                         os.path.join(p_snap_init_file_dir + "011_processed/", d_inti_snapshots[p_ticker]))
-            log_info(conn, p_db_ver, f"***main*** MOVE {filename} file to processed folder")
+            log_info(conn, p_db_ver, f"***main*** MOVE {d_inti_snapshots[p_ticker]} file to processed folder")
             
             cursor.close()
             conn.close()
@@ -158,7 +157,7 @@ def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
             for filename in os.listdir(p_snap_init_file_dir + "011_processed"):
                 shutil.move(os.path.join(p_snap_init_file_dir + "011_processed/", filename), 
                             os.path.join(p_snap_init_file_dir + "001_raw/", filename))
-                lprint(f"File '{filename}' moved back to raw folder")              
+                lprint(f"File '{filename}' moved back to raw folder",conn,p_db_ver)              
                 
             ## DELETE tables
             with psycopg2.connect(CONNECTION) as conn:
@@ -167,12 +166,13 @@ def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
                     for side in ['ask', 'bid']:
                         cursor.execute(sql.SQL("DROP TABLE IF EXISTS {table} CASCADE").format(table=sql.Identifier(f'l2_history_{side}')))
                         log_info(conn, p_db_ver, f"***main*** RESETTING Database & Files")                        
-                        lprint(f"Table 'l2_history_{side}' successfully dropped")
+                        lprint(f"Table 'l2_history_{side}' successfully dropped",conn,p_db_ver)
                         cursor.execute(sql.SQL("DROP TABLE IF EXISTS {table} CASCADE").format(table=sql.Identifier(f'l2_snapshot_{side}')))
-                        lprint(f"Table 'l2_snapshot_{side}' successfully dropped")
+                        lprint(f"Table 'l2_snapshot_{side}' successfully dropped",conn,p_db_ver)
 
     except Exception as e:
-        log_message(conn, 'ERROR', f"Error in main function: {str(e)}")
+        print(e)
+        log_message(conn, 'ERROR', p_db_ver, f"Error in main function: {str(e)}")
     finally:
         cursor.close()
         conn.close()

@@ -13,7 +13,7 @@ from io import StringIO  # Import StringIO from the io module
 
 
 global yprint
-yprint=False
+yprint=True
 
 def xprint(x):
     if yprint==True:
@@ -46,7 +46,7 @@ def get_max_scd_to_date():
 import logging
 from datetime import datetime
 
-def lprint(message):
+def lprint(message,conn,p_db_ver):
     if yprint:
         print(message)
     log_message(conn, 'INFO', p_db_ver ,message)
@@ -60,18 +60,22 @@ def setup_logging_table(conn):
         message TEXT
     )
     """
-    conn.execute(logging_table_schema)
+    cursor = conn.cursor()
+    cursor.execute(logging_table_schema)
     conn.commit()
+    cursor.close()
 
 def log_message(conn, level, p_db_ver, message):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
     log_entry = (timestamp, level, p_db_ver,message)
     insert_log_query = """
     INSERT INTO logs (timestamp, level, p_db_ver, message)
-    VALUES (?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s)
     """
-    conn.execute(insert_log_query, log_entry)
+    cursor = conn.cursor()
+    cursor.execute(insert_log_query, log_entry)
     conn.commit()
+    cursor.close()
 
 def log_info(conn, p_db_ver, message):
     log_message(conn, "INFO", p_db_ver, message)
@@ -126,3 +130,4 @@ def copy_from_dataframe(conn, df, table):
     
     with conn.cursor() as cur:
         cur.copy_from(buffer, table, sep=',', null='')
+    
