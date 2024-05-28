@@ -47,14 +47,27 @@ def f_ETL_Init_01(p_snap_init_file,p_db_ver,conn):
         #   TRANSFORM
         # ============================================================================================
 
-        lprint("***f_ETL_Init_01*** l2_snapshot_01",conn,p_db_ver)
+        log_info(conn, p_db_ver, f"***f_ETL_Init_01*** l2_snapshot_01")
         ### Lower-case
         l2_snapshot_01.columns = map(str.lower, l2_snapshot_01.columns)
         ### CREATE Numeric px & qx    
         l2_snapshot_01['px_00'] = l2_snapshot_01['price']
         l2_snapshot_01['qx_00'] = l2_snapshot_01['quantity']
+        # Convert the timestamp column to datetime
+        l2_snapshot_01['ts'] = pd.to_datetime(l2_snapshot_01['timestamp'])
+        # Convert to US/Eastern timezone
+        xprint("Pre timstamp chnage: ")
+        xprint(l2_snapshot_01.head())
+        l2_snapshot_01['ts_e_est'] = l2_snapshot_01['ts'].dt.tz_localize('UTC').dt.tz_convert(pytz.timezone("US/Eastern"))        
+        # Convert to US/Eastern timezone
+        l2_snapshot_01['timestamp'] = l2_snapshot_01['timestamp'].dt.tz_localize('UTC').dt.tz_convert(pytz.timezone("US/Eastern"))
+        l2_snapshot_01['timestamp'] = l2_snapshot_01['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S.%f|%Z%z')
+        xprint("Post timstamp change: ")
+        xprint(l2_snapshot_01.head())
+        xprint(l2_snapshot_01.info()) 
+
         ### ORDER Columns
-        l_col_order_01 = ['ticker', 'side','price','px_00','quantity','qx_00','timestamp','lastupdateid']
+        l_col_order_01 = ['ticker', 'side','price','px_00','quantity','qx_00','timestamp','ts_e_est','lastupdateid']
         l2_snapshot_01 = l2_snapshot_01[l_col_order_01]
         xprint(l2_snapshot_01.head())
         # xdisplay(l2_snapshot_01.head(2))
@@ -66,7 +79,7 @@ def f_ETL_Init_01(p_snap_init_file,p_db_ver,conn):
 
         ### SCD Columns
         l2_history_00 = l2_snapshot_01.copy()
-        l2_history_00['scd_from_date'] = l2_history_00['timestamp']
+        l2_history_00['scd_from_date'] = l2_history_00['ts_e_est'].copy()
         
         # l2_history_00['scd_to_date'] = '9999-12-31 23:59'
         l2_history_00['scd_to_date'] = get_max_scd_to_date()
@@ -80,10 +93,10 @@ def f_ETL_Init_01(p_snap_init_file,p_db_ver,conn):
         #   LOAD Initial data 
         # ============================================================================================
         
-        copy_from_dataframe(conn, l2_snapshot_02a, 'l2_snapshot_ask')
-        copy_from_dataframe(conn, l2_snapshot_02b, 'l2_snapshot_bid')
-        copy_from_dataframe(conn, l2_history_00a, 'l2_history_ask')
-        copy_from_dataframe(conn, l2_history_00b, 'l2_history_bid')
+        copy_from_dataframe(conn, p_db_ver, l2_snapshot_02a, 'l2_snapshot_ask')
+        copy_from_dataframe(conn, p_db_ver, l2_snapshot_02b, 'l2_snapshot_bid')
+        copy_from_dataframe(conn, p_db_ver, l2_history_00a, 'l2_history_ask')
+        copy_from_dataframe(conn, p_db_ver, l2_history_00b, 'l2_history_bid')
 
     except Exception as e:
         log_message(conn, 'ERROR', p_db_ver, f"Error in f_ETL_Init_01: {str(e)}")
@@ -99,25 +112,7 @@ def f_ETL_Init_01(p_snap_init_file,p_db_ver,conn):
 
 def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
 
-    # PostgreSQL connection details from environment variables
-    # DB_USER = os.getenv('DB_USERNAME')
-    # DB_PASSWORD = os.getenv('DB_PASSWORD')
-    # DB_HOST = os.getenv('DB_HOST')
-    # DB_PORT = os.getenv('DB_PORT')
-    # DB_NAME = os.getenv('DB_NAME')
-
-    # PostgreSQL connection details
-    # psql "postgres://tsdbadmin:<PASSWORD>@<HOST>:<PORT>/tsdb?sslmode=require"
-    # CONNECTION = "postgres://username:password@host:port/dbname"
     CONNECTION = "postgres://tsdbadmin:>X>#h2lWqXESlyGd}mj2NPDlB@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
-
-    # PostgreSQL connection details from environment variables
-    # DB_USER = os.getenv('DB_USERNAME')
-    # DB_PASSWORD = os.getenv('DB_PASSWORD')
-    # DB_HOST = os.getenv('DB_HOST')
-    # DB_PORT = os.getenv('DB_PORT')
-    # DB_NAME = os.getenv('DB_NAME')
-    # CONNECTION = f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     try:
         conn = psycopg2.connect(CONNECTION)
         conn.autocommit = True
@@ -144,8 +139,8 @@ def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
             # # CLEAN-UP & CLOSE
             # # ------------------------------------------------------------------------------------
 
-            shutil.move(os.path.join(p_snap_init_file_dir + "001_raw/", d_inti_snapshots[p_ticker]), 
-                        os.path.join(p_snap_init_file_dir + "011_processed/", d_inti_snapshots[p_ticker]))
+            # shutil.move(os.path.join(p_snap_init_file_dir + "001_raw/", d_inti_snapshots[p_ticker]), 
+            #             os.path.join(p_snap_init_file_dir + "011_processed/", d_inti_snapshots[p_ticker]))
             log_info(conn, p_db_ver, f"***main*** MOVE {d_inti_snapshots[p_ticker]} file to processed folder")
             
             cursor.close()

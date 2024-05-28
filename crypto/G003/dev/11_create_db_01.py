@@ -45,7 +45,8 @@ def create_tables_and_hypertables(conn,p_db_ver,):
             px_00 NUMERIC(1000, 15),
             quantity TEXT,
             qx_00 NUMERIC(1000, 15),                  
-            timestamp TIMESTAMPTZ,
+            timestamp TEXT,
+            ts_e_est TIMESTAMPTZ,
             lastupdateid TEXT,
             PRIMARY KEY (price, side,timestamp)            
         );
@@ -58,7 +59,8 @@ def create_tables_and_hypertables(conn,p_db_ver,):
             px_00 NUMERIC(1000, 15),
             quantity TEXT,
             qx_00 NUMERIC(1000, 15),                  
-            timestamp TIMESTAMPTZ,
+            timestamp TEXT,
+            ts_e_est TIMESTAMPTZ,
             lastupdateid TEXT,
             PRIMARY KEY (price, side,timestamp)            
         );
@@ -71,7 +73,8 @@ def create_tables_and_hypertables(conn,p_db_ver,):
             px_00 NUMERIC(1000, 15),
             quantity TEXT,
             qx_00 NUMERIC(1000, 15),                  
-            timestamp TIMESTAMPTZ,
+            timestamp TEXT,
+            ts_e_est TIMESTAMPTZ,
             lastupdateid TEXT,
             scd_from_date TIMESTAMPTZ,
             scd_to_date TIMESTAMPTZ,
@@ -86,7 +89,8 @@ def create_tables_and_hypertables(conn,p_db_ver,):
             px_00 NUMERIC(1000, 15),
             quantity TEXT,
             qx_00 NUMERIC(1000, 15),                  
-            timestamp TIMESTAMPTZ,
+            timestamp TEXT,
+            ts_e_est TIMESTAMPTZ,
             lastupdateid TEXT,
             scd_from_date TIMESTAMPTZ,
             scd_to_date TIMESTAMPTZ,
@@ -100,14 +104,32 @@ def create_tables_and_hypertables(conn,p_db_ver,):
                 p_db_ver TEXT,
                 message TEXT
             )
-        """        
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS update_i (
+            ticker TEXT,
+            side VARCHAR(10),
+            price TEXT,
+            px_00 NUMERIC(1000, 15),
+            quantity TEXT,
+            qx_00 NUMERIC(1000, 15),                  
+            timestamp TEXT,
+            lastupdateid TEXT,
+            timestampevent TIMESTAMPTZ,
+            ts_p TIMESTAMPTZ,            
+            ts_p_03 TIMESTAMPTZ,
+            ts_e_est TIMESTAMPTZ,                        
+            PRIMARY KEY (price, side, timestamp)            
+        );
+        """
     ]
 
     hypertable_commands = [
         "SELECT create_hypertable('l2_snapshot_ask', 'timestamp', if_not_exists => TRUE);",
         "SELECT create_hypertable('l2_snapshot_bid', 'timestamp', if_not_exists => TRUE);",
         "SELECT create_hypertable('l2_history_ask', 'scd_from_date', if_not_exists => TRUE);",
-        "SELECT create_hypertable('l2_history_bid', 'scd_from_date', if_not_exists => TRUE);"
+        "SELECT create_hypertable('l2_history_bid', 'scd_from_date', if_not_exists => TRUE);",
+        "SELECT create_hypertable('update_i', 'timestamp', if_not_exists => TRUE);"
     ]
 
     try:
@@ -125,7 +147,7 @@ def create_tables_and_hypertables(conn,p_db_ver,):
         conn.commit()
         
         # Log and print table information
-        tables = ['l2_snapshot_ask', 'l2_snapshot_bid', 'l2_history_ask', 'l2_history_bid']
+        tables = ['l2_snapshot_ask', 'l2_snapshot_bid', 'l2_history_ask', 'l2_history_bid','update_i']
         for table in tables:
             print_table_info(conn, table,p_db_ver)
 
@@ -164,6 +186,9 @@ def main(p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
                     cursor.execute(sql.SQL("DROP TABLE IF EXISTS {table} CASCADE").format(table=sql.Identifier(f'l2_snapshot_{side}')))
                     xprint(f"Table 'l2_snapshot_{side}' deleted successfully.")
 
+                truncate_tmp_table_query = "TRUNCATE TABLE logs;"
+                cursor.execute(truncate_tmp_table_query)
+                conn.commit()
 
 if __name__ == '__main__':
 
