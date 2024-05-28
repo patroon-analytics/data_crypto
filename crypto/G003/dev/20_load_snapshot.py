@@ -112,7 +112,7 @@ def f_ETL_Init_01(p_snap_init_file,p_db_ver,conn):
 
 def main(p_ticker, p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
 
-    CONNECTION = "postgres://tsdbadmin:>X>#h2lWqXESlyGd}mj2NPDlB@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
+    CONNECTION = "postgres://tsdbadmin:phnkvdq0tfttytfn@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
     try:
         conn = psycopg2.connect(CONNECTION)
         conn.autocommit = True

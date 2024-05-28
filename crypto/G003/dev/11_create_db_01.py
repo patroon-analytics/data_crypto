@@ -24,7 +24,7 @@ def create_connection():
     #     port='your_port'
     # )
 
-    CONNECTION = "postgres://tsdbadmin:>X>#h2lWqXESlyGd}mj2NPDlB@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
+    CONNECTION = "postgres://tsdbadmin:phnkvdq0tfttytfn@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
     
     conn = psycopg2.connect(CONNECTION)
     conn.autocommit = True
@@ -136,9 +136,9 @@ def create_tables_and_hypertables(conn,p_db_ver,):
         cursor = conn.cursor()
         for command in commands:
             try:
-                xprint("***CREATING Table*** "+str(re.search(r'l2\w+', command).group()))
+                print("***CREATING Table*** "+str(re.search(r'l2\w+', command).group()))
             except:
-                xprint("***CREATING Table*** logs")
+                print("***CREATING Table*** logs")
                 
             cursor.execute(command)
         for hypertable_command in hypertable_commands:
@@ -182,9 +182,9 @@ def main(p_snap_init_file_dir, p_db_ver, p_yprint, p_reset):
             with conn.cursor() as cursor:
                 for side in ['ask', 'bid']:
                     cursor.execute(sql.SQL("DROP TABLE IF EXISTS {table} CASCADE").format(table=sql.Identifier(f'l2_history_{side}')))
-                    xprint(f"Table 'l2_history_{side}' deleted successfully.")
+                    print(f"Table 'l2_history_{side}' deleted successfully.")
                     cursor.execute(sql.SQL("DROP TABLE IF EXISTS {table} CASCADE").format(table=sql.Identifier(f'l2_snapshot_{side}')))
-                    xprint(f"Table 'l2_snapshot_{side}' deleted successfully.")
+                    print(f"Table 'l2_snapshot_{side}' deleted successfully.")
 
                 truncate_tmp_table_query = "TRUNCATE TABLE logs;"
                 cursor.execute(truncate_tmp_table_query)

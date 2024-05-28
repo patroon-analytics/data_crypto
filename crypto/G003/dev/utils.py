@@ -13,7 +13,7 @@ from io import StringIO  # Import StringIO from the io module
 
 
 global yprint
-yprint=True
+yprint=False
 
 def xprint(x):
     if yprint==True:
@@ -31,6 +31,11 @@ def f_convert_ts_to_dt(timestamp):
     ts_e_cet = datetime.fromtimestamp(timestamp / 1000, pytz.timezone("Europe/Berlin")).strftime('%Y-%m-%d %H:%M:%S.%f')
     return pd.Series({'ts_e_est': ts_e_est, 'ts_e_cet': ts_e_cet})
 
+def f_convert_ts_to_dt_02(timestamp):
+    ts_e_est = datetime.fromtimestamp(timestamp / 1000, pytz.timezone("US/Eastern")).strftime('%Y-%m-%d %H:%M:%S.%f')
+    # ts_e_cet = datetime.fromtimestamp(timestamp / 1000, pytz.timezone("Europe/Berlin")).strftime('%Y-%m-%d %H:%M:%S.%f')
+    # return pd.Series({'ts_e_est': ts_e_est, 'ts_e_cet': ts_e_cet})
+    return pd.Series({'ts_e_est': ts_e_est})
 
 # def f_exec_query(conn, query, params=()):
 #     return pd.read_sql_query(query, conn, params=params)
@@ -120,10 +125,11 @@ def log_message_01_Init_Load(conn, log_level, message):
 #   ETL
 # ==========================================================================================
 
-def copy_from_dataframe(conn, df, table):
+def copy_from_dataframe(conn,p_db_ver, df, table):
     """
     Save the dataframe to the database using COPY FROM with StringIO
     """
+    log_info(conn, p_db_ver, f"***copy_from_dataframe*** to csv to database")
     buffer = StringIO()
     df.to_csv(buffer, index=False, header=False)
     buffer.seek(0)
@@ -131,3 +137,4 @@ def copy_from_dataframe(conn, df, table):
     with conn.cursor() as cur:
         cur.copy_from(buffer, table, sep=',', null='')
     
+

@@ -39,18 +39,28 @@ from utils_tsdb import *
 
 import logging
 
+
+import warnings 
+  
+# Settings the warnings to be ignored 
+warnings.filterwarnings('ignore') 
+  
+
 # Configure logging
 # logging.basicConfig(filename='logs/30_load_update_20.log', level=logging.INFO, 
 #                     format='%(asctime)s %(levelname)s:%(message)s')
 
 # ???????????????????????????????????????????????????????????????????????
-import sys
-old_stdout = sys.stdout
+# import sys
+# old_stdout = sys.stdout
 
-log_file = open("logs/30_load_update_20_v10.log","w")
+# log_file = open("logs/30_load_update_20_v11.log","w")
 
-sys.stdout = log_file
+# sys.stdout = log_file
 # ???????????????????????????????????????????????????????????????????????
+
+# global yprint
+# yprint=False
 
 # #######################################################################################################
 # UPDATES
@@ -73,7 +83,7 @@ def g_E01_df(p_ticker, p_dir_updates_root, conn,p_db_ver,l_col_order_01=l_col_or
             log_info(conn, p_db_ver, f"***g_E01*** READING-IN: {filename} @ {now_ts}")
             # print(os.path.join(p_dir_updates, filename))
             l2_update_02 = pd.read_feather(os.path.join(p_dir_updates, filename))
-            print("len(l2_update_02) pre"+str(len(l2_update_02)))
+            xprint("len(l2_update_02) pre"+str(len(l2_update_02)))
             l2_update_02 = l2_update_02.drop_duplicates() 
             log_info(conn, p_db_ver, f"Number of rows input: {str(len(l2_update_02))}")
             ### Lower-case
@@ -190,10 +200,9 @@ def f_L01_update(conn,cursor,p_db_ver, df_updates, p_side,l_col_order_01=l_col_o
                 execute_values(cursor, sql_tmp_insert, [tuple(record.values()) for record in update_i_records])
                 conn.commit()
                 xprint(">>>>> tmp_update_i: INSERT")      
-                try:          
-                    xprint(pd.read_sql_query("select * from tmp_update_i",conn))
-                except Exception as e:
-                    print(e)
+                if yprint: 
+                    df_print=pd.read_sql_query("select * from tmp_update_i",conn)
+                    xprint(df_print[df_print['price']=='61227.27000000'])
 
             except Exception as e:
                 conn.rollback()
@@ -202,7 +211,7 @@ def f_L01_update(conn,cursor,p_db_ver, df_updates, p_side,l_col_order_01=l_col_o
         # --------------------------------------------------------------------------------------------
         #   UPDATE the Snapshot
         # --------------------------------------------------------------------------------------------
-            lprint(">>>>>>>>here<<<<<<<<<<",conn,p_db_ver)
+            # lprint(">>>>>>>>here<<<<<<<<<<",conn,p_db_ver)
             sql_snap_update = f"""
                 INSERT INTO l2_snapshot_{p_side} (ticker, side, price,px_00, quantity, qx_00, timestamp, ts_e_est, lastupdateid)
                 SELECT 
@@ -237,8 +246,9 @@ def f_L01_update(conn,cursor,p_db_ver, df_updates, p_side,l_col_order_01=l_col_o
 
 # Here --->>> !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             xprint(f">>>>> l2_history_{p_side}: PRE UPDATE")
-            df_print = pd.read_sql_query(f"select * from l2_history_{p_side}",conn)
-            xprint(df_print[df_print['price']=='61227.27000000'])                
+            if yprint==True: 
+                df_print = pd.read_sql_query(f"select * from l2_history_{p_side}",conn)
+                xprint(df_print[df_print['price']=='61227.27000000'])                
 
             update_scd_query = f"""
                 UPDATE l2_history_{p_side}
@@ -250,8 +260,9 @@ def f_L01_update(conn,cursor,p_db_ver, df_updates, p_side,l_col_order_01=l_col_o
             """
             cursor.execute(update_scd_query)
             xprint(f">>>>> l2_history_{p_side}: POST UPDATE")
-            df_print = pd.read_sql_query(f"select * from l2_history_{p_side}",conn)
-            xprint(df_print[df_print['price']=='61227.27000000'])                
+            if yprint==True: 
+                df_print = pd.read_sql_query(f"select * from l2_history_{p_side}",conn)
+                xprint(df_print[df_print['price']=='61227.27000000'])                
 
             # Error updating l2_snapshot_ask and l2_history_ask: duplicate key value violates unique constraint "l2_snapshot_ask_pkey"\nDETAIL: Key (price, side, "timestamp")=(60556.01000000, ASK, 2024-05-11 09:15:50.905435|EDT-0400) already exists.\n
 
@@ -285,8 +296,9 @@ def f_L01_update(conn,cursor,p_db_ver, df_updates, p_side,l_col_order_01=l_col_o
             cursor.execute(insert_into_scd_query)
 
             xprint(f">>>>> l2_history_{p_side}: POST insert")
-            df_print = pd.read_sql_query(f"select * from l2_history_{p_side}",conn)
-            xprint(df_print[df_print['price']=='61227.27000000'])                
+            if yprint==True: 
+                df_print = pd.read_sql_query(f"select * from l2_history_{p_side}",conn)
+                xprint(df_print[df_print['price']=='61227.27000000'])                
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!<<<---To Here
 
@@ -310,7 +322,7 @@ def f_L01_update(conn,cursor,p_db_ver, df_updates, p_side,l_col_order_01=l_col_o
 
 def main(p_ticker, p_dir_updates_root, p_db_ver):
 
-    CONNECTION = "postgres://tsdbadmin:>X>#h2lWqXESlyGd}mj2NPDlB@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
+    CONNECTION = "postgres://tsdbadmin:phnkvdq0tfttytfn@esd7mq3z84.dts890uzaz.tsdb.cloud.timescale.com:37281/tsdb?sslmode=require"
     conn = psycopg2.connect(CONNECTION)
     conn.autocommit = True
     cursor = conn.cursor()
@@ -322,7 +334,7 @@ def main(p_ticker, p_dir_updates_root, p_db_ver):
             now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             log_info(conn, p_db_ver, f"***f_L01*** PROCESSING #{iter} @ {now_ts}")
             f_L01_update(conn,cursor,p_db_ver, update_df[update_df['side'].str.upper() == 'ASK'], 'ask')
-            # f_L01_update(conn,cursor,p_db_ver, update_df[update_df['side'].str.upper() == 'BID'], 'bid')
+            f_L01_update(conn,cursor,p_db_ver, update_df[update_df['side'].str.upper() == 'BID'], 'bid')
         log_info(conn, p_db_ver, f"***f_L01*** PROCESSING Update Completed")
     except Exception as e:
         log_error(conn,p_db_ver, f"***main*** Error during the update process: {str(e)}")
@@ -348,6 +360,6 @@ if __name__ == "__main__":
          p_db_ver=n_db_ver)
 
 # ???????????????????????????????????????????????????????????????????????
-sys.stdout = old_stdout
-log_file.close()
+# sys.stdout = old_stdout
+# log_file.close()
 # ???????????????????????????????????????????????????????????????????????
