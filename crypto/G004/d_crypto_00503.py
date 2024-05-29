@@ -208,6 +208,8 @@ class BinanceStreamProcessor:
 
     def process_message(self, message):
         data = json.loads(message)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
+        data['timestamp'] = timestamp
         with self.lock:
             self.messages.append(data)
 
@@ -234,7 +236,7 @@ class BinanceStreamProcessor:
         # Categorize messages by stream type
         for data in all_data:
             stream_type = data['stream'].split('@')[1]
-            timestamp = datetime.now().timestamp()
+            timestamp = data['timestamp']
             if 'depth' in stream_type:
                 depth_data.append(self.create_df_l2b(data['data'], timestamp))
             elif 'trade' in stream_type:
@@ -267,7 +269,7 @@ class BinanceStreamProcessor:
         response = requests.get(url, params=params)
         if response.status_code == 200:
             data = response.json()
-            timestamp = datetime.now().timestamp()
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
             df_order_book = self.create_df_l2_02(data, timestamp)
             self.log_data(df_order_book.to_dict())
         else:
@@ -321,6 +323,7 @@ class BinanceStreamProcessor:
         df['Val_USD'] = df['Price'].astype(float) * df['Quantity'].astype(float)
         df['EventTime_Unix'] = df['E']
         df['EventTime_EST'] = self.convert_unix_to_est(df['EventTime_Unix'][0])
+        df['Timestamp'] = timestamp
         return df[columns]
 
     def create_df_liq(self, data_dict, timestamp):
@@ -340,6 +343,7 @@ class BinanceStreamProcessor:
         df['EventTime_Unix'] = df['T']
         df['EventTime_EST'] = self.convert_unix_to_est(df['EventTime_Unix'][0])
         df['Liq_Type'] = df.apply(lambda row: "S_LIQ" if row['Side'] == 'SELL' else 'L_LIQ', axis=1)
+        df['Timestamp'] = timestamp
         return df[columns]
 
     def create_df_kline(self, data_dict, timestamp):
@@ -367,7 +371,7 @@ class BinanceStreamProcessor:
         return df
 
     def convert_unix_to_est(self, unix_timestamp):
-        return datetime.fromtimestamp(unix_timestamp / 1000, self.timezone).strftime('%H:%M:%S')
+        return datetime.fromtimestamp(unix_timestamp / 1000, self.timezone).strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
 
 # Example usage
 def on_message(ws, message):
