@@ -184,33 +184,78 @@ import pandas as pd
 import pytz
 from datetime import datetime
 import logging
+import threading
+import time
+from collections import deque
+from websocket import WebSocketApp
 
 class BinanceStreamProcessor:
     def __init__(self, ticker, timezone="US/Eastern"):
         self.ticker = ticker
         self.timezone = pytz.timezone(timezone)
+        self.messages = deque()
+        self.lock = threading.Lock()
         logging.basicConfig(filename='binance_stream.log', level=logging.INFO, format='%(asctime)s %(message)s')
+
+        # Start the batching thread
+        self.batching_thread = threading.Thread(target=self.process_batches)
+        self.batching_thread.daemon = True
+        self.batching_thread.start()
 
     def log_data(self, data):
         logging.info(json.dumps(data, indent=4))
 
     def process_message(self, message):
         data = json.loads(message)
-        stream_type = data['stream'].split('@')[1]
-        timestamp = datetime.now().timestamp()
-        
-        if 'depth' in stream_type:
-            df = self.create_df_l2b(data['data'], timestamp)
-        elif 'trade' in stream_type:
-            df = self.create_df_trade(data['data'], timestamp)
-        elif 'aggTrade' in stream_type:
-            df = self.create_df_agg_trade(data['data'], timestamp)
-        elif 'kline' in stream_type:
-            df = self.create_df_kline(data['data'], timestamp)
-        else:
-            df = None
-        
-        self.log_data(df.to_dict())
+        with self.lock:
+            self.messages.append(data)
+
+    def process_batches(self):
+        while True:
+            time.sleep(3600)  # Sleep for one hour
+            self.process_hourly_batch()
+
+    def process_hourly_batch(self):
+        with self.lock:
+            if not self.messages:
+                return
+
+            # Process accumulated messages
+            all_data = list(self.messages)
+            self.messages.clear()
+
+        # Initialize DataFrames for each stream type
+        depth_data = []
+        trade_data = []
+        agg_trade_data = []
+        kline_data = []
+
+        # Categorize messages by stream type
+        for data in all_data:
+            stream_type = data['stream'].split('@')[1]
+            timestamp = datetime.now().timestamp()
+            if 'depth' in stream_type:
+                depth_data.append(self.create_df_l2b(data['data'], timestamp))
+            elif 'trade' in stream_type:
+                trade_data.append(self.create_df_trade(data['data'], timestamp))
+            elif 'aggTrade' in stream_type:
+                agg_trade_data.append(self.create_df_agg_trade(data['data'], timestamp))
+            elif 'kline' in stream_type:
+                kline_data.append(self.create_df_kline(data['data'], timestamp))
+
+        # Concatenate data into single DataFrames
+        if depth_data:
+            df_depth = pd.concat(depth_data, ignore_index=True)
+            self.log_data(df_depth.to_dict())
+        if trade_data:
+            df_trade = pd.concat(trade_data, ignore_index=True)
+            self.log_data(df_trade.to_dict())
+        if agg_trade_data:
+            df_agg_trade = pd.concat(agg_trade_data, ignore_index=True)
+            self.log_data(df_agg_trade.to_dict())
+        if kline_data:
+            df_kline = pd.concat(kline_data, ignore_index=True)
+            self.log_data(df_kline.to_dict())
 
     def create_df_l2b(self, data_dict, timestamp):
         last_update_id = data_dict["u"]
@@ -293,6 +338,17 @@ class BinanceStreamProcessor:
     def convert_unix_to_est(self, unix_timestamp):
         return datetime.fromtimestamp(unix_timestamp / 1000, self.timezone).strftime('%H:%M:%S')
 
+# Example usage
+def on_message(ws, message):
+    processor.process_message(message)
+
+# Combined streams URL
+url = "wss://stream.binance.com:9443/stream?streams=btcusdt@depth@100ms/btcusdt@trade/btcusdt@kline_1m/btcusdt@aggTrade"
+
+# WebSocket App
+processor = BinanceStreamProcessor(ticker="BTCUSDT")
+ws = WebSocketApp(url, on_message=on_message)
+ws.run_forever()
 
 
 # -======================================================================
