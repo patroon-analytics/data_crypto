@@ -188,6 +188,7 @@ import threading
 import time
 from collections import deque
 from websocket import WebSocketApp
+import requests
 
 class BinanceStreamProcessor:
     def __init__(self, ticker, timezone="US/Eastern"):
@@ -256,6 +257,36 @@ class BinanceStreamProcessor:
         if kline_data:
             df_kline = pd.concat(kline_data, ignore_index=True)
             self.log_data(df_kline.to_dict())
+
+        # Fetch and process the L2 order book snapshot
+        self.fetch_and_process_order_book()
+
+    def fetch_and_process_order_book(self):
+        url = "https://api.binance.com/api/v3/depth"
+        params = {"symbol": self.ticker, "limit": 5000}
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            timestamp = datetime.now().timestamp()
+            df_order_book = self.create_df_l2_02(data, timestamp)
+            self.log_data(df_order_book.to_dict())
+        else:
+            logging.error(f"Failed to fetch order book data: {response.status_code}")
+
+    def create_df_l2_02(self, data_dict, timestamp):
+        last_update_id = data_dict["lastUpdateId"]
+        bids = pd.DataFrame(data_dict["bids"], columns=["Price", "Quantity"])
+        asks = pd.DataFrame(data_dict["asks"], columns=["Price", "Quantity"])
+        bids["Side"] = "BID"
+        asks["Side"] = "ASK"
+        bids["LastUpdateId"] = last_update_id
+        asks["LastUpdateId"] = last_update_id
+
+        df = pd.concat([bids, asks], ignore_index=True)
+        df["Ticker"] = self.ticker
+        df["Timestamp"] = timestamp
+        df = df[["Ticker", "Side", "Price", "Quantity", "Timestamp", "LastUpdateId"]]
+        return df
 
     def create_df_l2b(self, data_dict, timestamp):
         last_update_id = data_dict["u"]
@@ -343,13 +374,12 @@ def on_message(ws, message):
     processor.process_message(message)
 
 # Combined streams URL
-url = "wss://stream.binance.com:9443/stream?streams=btcusdt@depth@100ms/btcusdt@trade/btcusdt@kline_1m/btcusdt@aggTrade"
+url = "wss://stream.binance.com:9443/stream?streams=solusdt@depth@100ms/solusdt@trade/solusdt@kline_1m/solusdt@aggTrade"
 
 # WebSocket App
-processor = BinanceStreamProcessor(ticker="BTCUSDT")
+processor = BinanceStreamProcessor(ticker="SOLUSDT")
 ws = WebSocketApp(url, on_message=on_message)
 ws.run_forever()
-
 
 # -======================================================================
 
