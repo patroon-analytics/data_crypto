@@ -82,7 +82,6 @@ class BinanceStreamProcessor:
                         'SOLUSDT' : 10000, 
                     }
 
-
         # Create directory for feather files if it doesn't exist
         if not os.path.exists(self.dir_updates_root):
             os.makedirs(self.dir_updates_root)
@@ -155,6 +154,7 @@ class BinanceStreamProcessor:
         lodf_trade_data = []
         lodf_agg_trade_data = []
         lodf_kline_data = []
+        lodf_force_order_data = []        
 
 # ----------------------------------------------------------------------------------
 #   PROCESS Buffered Messages in DQ Obj, RETURN DF & APPEND to List of DF
@@ -192,7 +192,14 @@ class BinanceStreamProcessor:
                 xprint("#---------------------------------------------------------------")                 
                 lodf_kline_data.append(self.create_df_kline(data['data'], ts_p_est))
                 xprint("***lodf_kline_data***")                
-                xprint(lodf_kline_data[-2:])
+                xprint(lodf_kline_data[-2:])                
+            elif 'forceOrder' in stream_type:
+                xprint("#---------------------------------------------------------------")                
+                xprint("----->>>>>'forceOrder' in stream_type: lodf_force_order_data")               
+                xprint("#---------------------------------------------------------------")                 
+                lodf_force_order_data.append(self.create_df_force_order(data['data'], ts_p_est))                
+                xprint("***lodf_kline_data***")                
+                xprint(lodf_kline_data[-2:])                                
         # Concatenate data into single DataFrames and write to feather files
 
 # ----------------------------------------------------------------------------------
@@ -216,10 +223,13 @@ class BinanceStreamProcessor:
             df_kline = pd.concat(lodf_kline_data, ignore_index=True)
             self.log_data(df_kline.to_dict())
             df_kline.to_feather(f"{self.dir_updates_root}/kline_{self.ticker.lower()}_{current_time}_{self.db_ver}.feather")
+        if lodf_force_order_data:
+            df_force_order = pd.concat(lodf_force_order_data, ignore_index=True)
+            self.log_data(df_force_order.to_dict())
+            df_force_order.to_feather(f"{self.dir_updates_root}/forceOrder_{self.ticker.lower()}_{current_time}_{self.db_ver}.feather")
 
         # Fetch and process the L2 order book snapshot
         self.fetch_and_process_order_book()
-
 
 # ==================================================================================
 #   DEFINE Streams Handling
@@ -274,12 +284,14 @@ class BinanceStreamProcessor:
 
     def create_df_trade(self, data_dict, ts_ws):
         df = self.create_trade_df(data_dict, ts_ws)
+        xprint("***create_df_trade***")
         xprint(df.head())
         return df
 
     def create_df_agg_trade(self, data_dict, ts_ws):
         df = self.create_trade_df(data_dict, ts_ws)
         df2 = df[(df['Val_USD']>=self.d_thresh[self.ticker])]
+        xprint("***create_df_agg_trade***")
         xprint(df2.head())
         # df['Side'] = df.apply(lambda row: "BUY" if not row['IsBuyerMaker'] else "SELL", axis=1)
         return df2
@@ -306,6 +318,25 @@ class BinanceStreamProcessor:
         df = df[["Ticker","Side", "Price", "Quantity","Val_USD", "ts_p_est", "ts_e_est","Aggr_Trade_ID"]]
         # logging.debug(f"Trade DataFrame: {df.head()}")
         return df
+    
+    def create_df_kline(self, data_dict, ts_ws):
+        kline = data_dict['k']
+        df = pd.DataFrame([{
+            'Ticker': self.ticker,
+            'Open': float(kline['o']),
+            'Close': float(kline['c']),
+            'High': float(kline['h']),
+            'Low': float(kline['l']),
+            'Volume': float(kline['v']),
+            'ts_ws': ts_ws,
+            'OpenTime': kline['t'],
+            'CloseTime': kline['T'],
+            'Interval': kline['i']
+        }])
+        # logging.debug(f"Kline DataFrame: {df.head()}")
+        xprint("***create_df_kline***")
+        xprint(df.head())
+        return df
 
     def create_df_liq(self, data_dict, ts_ws):
         columns = ["Ticker", "Val_USD", "Price", "Quantity_Filled", "Quantity", "Liq_Type", "Side", "EventTime_EST", "EventTime_Unix"]
@@ -328,25 +359,26 @@ class BinanceStreamProcessor:
         logging.debug(f"Liq DataFrame: {df.head()}")
         return df[columns]
 
-    def create_df_kline(self, data_dict, ts_ws):
-        kline = data_dict['k']
-        df = pd.DataFrame([{
-            'Ticker': self.ticker,
-            'Open': float(kline['o']),
-            'Close': float(kline['c']),
-            'High': float(kline['h']),
-            'Low': float(kline['l']),
-            'Volume': float(kline['v']),
-            'ts_ws': ts_ws,
-            'OpenTime': kline['t'],
-            'CloseTime': kline['T'],
-            'Interval': kline['i']
-        }])
-        logging.debug(f"Kline DataFrame: {df.head()}")
-        return df
+    def create_df_force_order(self, data_dict, ts_p_est):
+        # columns = ["Ticker", "Side", "Price", "Quantity", "ts_ws", "LastUpdateId"]
+        df = pd.DataFrame([data_dict['o']]).rename(columns={
+            's': 'Ticker',
+            'S': 'Side',
+            'p': 'Price',
+            'q': 'Quantity',
+            'T': 'LastUpdateId'
+        })
+        df["Price"] = df["Price"].astype(float)
+        df["Quantity"] = df["Quantity"].astype(float)
+        df['Val_USD'] = df['Price'] * df['Quantity_Filled']        
+        df['ts_p_est'] = ts_p_est
+        # logging.debug(f"Force Order DataFrame: {df.head()}")
+        xprint("***create_df_force_order***")
+        xprint(df.head())
+        return df#[columns]
 
     def create_order_side_df(self, data, side, last_update_id):
-        df = pd.DataFrame(data, columns=["Price", "Quantity"].astype({"Price": str, "Quantity": str})
+        df = pd.DataFrame(data, columns=["Price", "Quantity"]).astype({"Price": str, "Quantity": str})
         # df["Price"] = df["Price"].astype(str)
         # df["Quantity"] = df["Quantity"].astype(str)
         df["Side"] = side
@@ -364,7 +396,8 @@ async def consume_messages(uri, processor):
 
 def main(p_ticker, p_dir_updates_root, p_db_ver):
     processor = BinanceStreamProcessor(ticker=p_ticker, dir_updates_root=p_dir_updates_root, db_ver=p_db_ver)
-    uri = f"wss://stream.binance.com:9443/stream?streams={p_ticker.lower()}@depth@100ms/{p_ticker.lower()}@trade/{p_ticker.lower()}@kline_1m/{p_ticker.lower()}@aggTrade"
+  # uri = f"wss://stream.binance.com:9443/stream?streams={p_ticker.lower()}@depth@100ms/{p_ticker.lower()}@trade/{p_ticker.lower()}@kline_1m/{p_ticker.lower()}@aggTrade"
+    uri = f"wss://stream.binance.com:9443/stream?streams={p_ticker.lower()}@depth@100ms/{p_ticker.lower()}@trade/{p_ticker.lower()}@kline_1m/{p_ticker.lower()}@aggTrade/{p_ticker.lower()}@forceOrder"    
     asyncio.get_event_loop().run_until_complete(consume_messages(uri, processor))
 
 if __name__ == "__main__":
