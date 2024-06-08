@@ -60,7 +60,7 @@ import websockets
 import argparse
 
 global yprint
-yprint=True
+yprint=False
 
 def xprint(x):
     if yprint==True:
@@ -438,7 +438,7 @@ if __name__ == "__main__":
     n_ticker = "BTCUSDT"
     n_dir_updates_root = os.path.join(os.getcwd(), "data/001_raw")
     n_db_ver = os.path.basename(__file__).replace(".py", "")
-    n_batch_seconds = 10
+    n_batch_seconds = 3600
 
     parser = argparse.ArgumentParser()
 
