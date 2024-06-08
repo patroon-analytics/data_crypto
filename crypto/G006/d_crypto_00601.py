@@ -59,12 +59,23 @@ import asyncio
 import websockets
 import argparse
 
+# Initialize global logging settings
+logging.basicConfig(filename='main_log.log', level=logging.DEBUG, format='%(asctime)s %(message)s')
+
+# Initialize a separate logger for xprint statements
+xprint_logger = logging.getLogger('xprint_logger')
+xprint_handler = logging.FileHandler('xprint_log.log')
+xprint_handler.setLevel(logging.DEBUG)
+xprint_formatter = logging.Formatter('%(asctime)s %(message)s')
+xprint_handler.setFormatter(xprint_formatter)
+xprint_logger.addHandler(xprint_handler)
+
 global yprint
-yprint=False
+yprint = True
 
 def xprint(x):
-    if yprint==True:
-         print(x) 
+    if yprint:
+        xprint_logger.debug(x)
 
 class BinanceStreamProcessor:
     def __init__(self, ticker, dir_updates_root, db_ver, batch_seconds, batch_l2, timezone="US/Eastern"):
@@ -174,9 +185,10 @@ class BinanceStreamProcessor:
         # Categorize messages by stream type
         for data in all_data:
             try:
-                stream_type = data['stream'].split('@')[1]
+                stream_type = data['stream']#.split('@')[1]
+                xprint(f"Stream type: {stream_type}") 
                 ts_p_est = data['ts_p_est']
-                if 'depth' in stream_type:
+                if '@depth' in stream_type:
                     if current_time - self.last_l2_update >= self.batch_l2:
                         xprint("#---------------------------------------------------------------")
                         xprint("----->>>>>'depth' in stream_type: lodf_depth_data")
@@ -185,28 +197,28 @@ class BinanceStreamProcessor:
                         xprint("***lodf_depth_data***")
                         xprint(lodf_depth_data[-2:])
                         self.last_l2_update = current_time
-                elif 'trade' in stream_type:
+                elif '@trade' in stream_type:
                     xprint("#---------------------------------------------------------------")
                     xprint("----->>>>>'trade' in stream_type: lodf_trade_data")
                     xprint("#---------------------------------------------------------------")                
                     lodf_trade_data.append(self.create_df_trade(data['data'], ts_p_est))
                     xprint("***lodf_trade_data***")                
                     xprint(lodf_trade_data[-2:])
-                elif 'aggTrade' in stream_type:
+                elif '@aggTrade' in stream_type:
                     xprint("#---------------------------------------------------------------")                
                     xprint("----->>>>>'aggTrade' in stream_type: lodf_agg_trade_data")        
                     xprint("#---------------------------------------------------------------")                        
                     lodf_agg_trade_data.append(self.create_df_agg_trade(data['data'], ts_p_est))
                     xprint("***lodf_agg_trade_data***")
                     xprint(lodf_agg_trade_data[-2:])                
-                elif 'kline' in stream_type:
+                elif '@kline' in stream_type:
                     xprint("#---------------------------------------------------------------")                
                     xprint("----->>>>>'kline' in stream_type: lodf_kline_data")               
                     xprint("#---------------------------------------------------------------")                 
                     lodf_kline_data.append(self.create_df_kline(data['data'], ts_p_est))
                     xprint("***lodf_kline_data***")                
                     xprint(lodf_kline_data[-2:])                
-                elif 'forceOrder' in stream_type:
+                elif '@forceOrder' in stream_type:
                     xprint("#---------------------------------------------------------------")                
                     xprint("----->>>>>'forceOrder' in stream_type: lodf_force_order_data")               
                     xprint("#---------------------------------------------------------------")                 
